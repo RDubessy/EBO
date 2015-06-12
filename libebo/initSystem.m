@@ -145,3 +145,95 @@ for j=ng+1:ntot
 end
 % }}}
 end
+
+function dab = computeDipolarCoupling (Atom, ng, ne, Iz, Jz, Pg, Pe)
+% COMPUTEDIPOLARCOUPLING Compute the reduced dipolar electric coupling
+% coefficients of a fine structure line.
+%   This gives access to the so called Clebsch-Gordan coefficient between
+%   particular sub-levels.
+%   The return value DAB is the NG times NE coupling matrix between the 
+%   ground and excited states of the ATOM. IZ and JZ are the projection of 
+%   the nuclear spin and the total angular momentum operators and PG and PE
+%   are the actual spin eigenstates of the ATOM.
+%   Note that this function is only called in the INITSYSTEM function and 
+%   should not be directly called.
+%
+%   See also INITSYSTEM
+dab = zeros (ng, ne,3);
+for i=1:ng
+    for j=1:ne
+        tmp = [0,0,0];
+        for ii=1:ng
+            for jj=1:ne
+                mI = Iz(ii,ii);
+                mIp = Iz(jj+ng,jj+ng);
+                if (mI == mIp)
+                    mJ = Jz(ii,ii);
+                    mJp = Jz(jj+ng,jj+ng);
+                    scale = Pg(ii,i) * Pe(jj,j) *...
+                        (-1)^(Atom.excited.J-1+mJ)*...
+                        sqrt(2*Atom.ground.J+1);
+                    tmp(1) = tmp(1) + scale*w3j(Atom.excited.J,mJp,1,-1,...
+                                Atom.ground.J,-mJ);
+                    tmp(2) = tmp(2) + scale*w3j(Atom.excited.J,mJp,1,0,...
+                                Atom.ground.J,-mJ);
+                    tmp(3) = tmp(3) + scale*w3j(Atom.excited.J,mJp,1,1,...
+                                Atom.ground.J,-mJ);
+                end
+            end
+        end
+        dab(i,j,:) = tmp;
+    end
+end
+end
+
+function w=w3j(j1,m1,j2,m2,j3,m3)
+% W = W3J(j1,m1,j2,m2,j3,m3)
+%
+% j1,j2,j3 must satisfy triangle condition |j2 - j3|<=j1<=j2 + j3
+%
+% Wigner 3-j symbol is evaluated using equation found in 'Angular 
+% Momentum: An Illustrated guide to Rotational Symmetries for
+% Physical Systems', W. J. Thompson
+%
+%J. Pritchard Durham University 2009
+
+%Check Triangular relation
+if(((j3<abs(j1-j2))||(j3>(j1+j2))))
+    error('Addition of angular momentum requires triangle relation\n\t|j1-j2|<=j3<=j1+j2');
+%Evaluate w3j
+else
+    if(m1+m2+m3~=0)
+        w=0;
+    elseif(j2==0)
+        w=1;
+    else
+        w=(-1)^(j1-j2-m3)*...
+        exp(0.5*(lgf(j3+j1-j2)+lgf(j3-j1+j2)+lgf(j1+j2-j3)...
+        +lgf(j3-m3)+lgf(j3+m3)- lgf(j1+j2+j3+1)...
+        -lgf(j1-m1)-lgf(j1+m1)-lgf(j2-m2)-lgf(j2+m2)))...
+        *ksum(j1,m1,j2,m2,j3,m3);
+    end
+end
+end
+
+%Summation performed for all values of k which give non-negative fs
+function s=ksum(j1,m1,j2,m2,j3,m3)
+s=0;
+kmin=max([0,-j1+j2-m3]);
+kmax=min([j3-j1+j2,j3-m3]);
+for k=kmin:kmax
+    s = s +(-1)^(k+j2+m2)*exp(lgf(j2+j3+m1-k)+lgf(j1-m1+k)...
+        -lgf(k)-lgf(j3-j1+j2-k)-lgf(j3-m3-k)-lgf(k+j1-j2+m3));
+end
+end
+
+%Stirlings approximation ln(n!)=n*ln(n)-n+0.5*ln(2*pi*n)
+function y=lgf(x)
+if(x<170)
+    y=log(factorial(x));
+else
+    y=x*log(x)-x+0.5*log(2*pi*x)+1/(12*x)-1/(360*x^3)+1/(1260*x^5)...
+        -1/(1680*x^7)+1/(1188*x^9);
+end
+end
